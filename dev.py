@@ -3,15 +3,26 @@ import subprocess
 import tkinter as tk
 from tkinter import scrolledtext
 from github import Github
-from agents import Agent, Runner, WebSearchTool, ComputerTool, function_tool
+from agents import Agent, Runner, WebSearchTool, Computer, ComputerTool, function_tool, set_default_openai_key
 from vector_store import save_to_project, delete_file, search_file  # Import FAISS functions
+from dotenv import load_dotenv
 
-# OpenAI API Key
-OPENAI_API_KEY = "your-new-api-key-here"
+load_dotenv()
 
-# GitHub Credentials
-GITHUB_ACCESS_TOKEN = "your-github-personal-access-token"
-GITHUB_REPO_NAME = "your-username/your-repo"
+openai_api_key = os.getenv("OPENAI_API_KEY")
+github_api_key = os.getenv("GITHUB_API_KEY")
+
+if not openai_api_key:
+    raise ValueError("Error: OPENAI_API_KEY is not set. Please add it to .env")
+
+if not github_api_key:
+    raise ValueError("Error: GITHUB_API_KEY is not set. Please add it to .env")
+
+# Set OpenAI API Key
+set_default_openai_key(openai_api_key)
+
+# Authenticate GitHub API
+github_client = Github(github_api_key)
 
 # AI Workspace (Logs, AI-generated files)
 AI_DIRECTORY = "AI"
@@ -22,6 +33,45 @@ root = tk.Tk()
 root.title("AI Multi-Agent Development System")
 log_text = scrolledtext.ScrolledText(root, width=100, height=30)
 log_text.pack()
+#Computer Setup
+
+class MyComputer(Computer):
+    def click(self, x: int, y: int, button: str = "left"):
+        print(f"[COMPUTER] Click at ({x}, {y}) with {button} button.")
+
+    def double_click(self, x: int, y: int, button: str = "left"):
+        print(f"[COMPUTER] Double-click at ({x}, {y}) with {button} button.")
+
+    def drag(self, x1: int, y1: int, x2: int, y2: int, button: str = "left"):
+        print(f"[COMPUTER] Drag from ({x1}, {y1}) to ({x2}, {y2}) with {button} button.")
+
+    def move(self, x: int, y: int):
+        print(f"[COMPUTER] Move cursor to ({x}, {y}).")
+
+    def keypress(self, key: str):
+        print(f"[COMPUTER] Keypress: {key}")
+
+    def type(self, text: str):
+        print(f"[COMPUTER] Typing: {text}")
+
+    def scroll(self, dx: int, dy: int):
+        print(f"[COMPUTER] Scrolling by ({dx}, {dy}).")
+
+    def dimensions(self):
+        return (1920, 1080)  # Example screen size
+
+    def environment(self):
+        return {"os": "Windows", "screen_size": self.dimensions()}
+
+    def screenshot(self):
+        print("[COMPUTER] Taking a screenshot.")
+        return b""  # Return empty byte data for now
+
+    def wait(self, seconds: float):
+        print(f"[COMPUTER] Waiting for {seconds} seconds.")
+
+# Create an instance of the custom Computer class
+computer = MyComputer()
 
 def log_message(message):
     log_text.insert(tk.END, message + "\n")
@@ -43,9 +93,11 @@ def commit_and_push_changes(branch_name, commit_message):
     subprocess.run(["git", "push", "-u", "origin", branch_name], check=True)
     log_message(f"[GitHub] Pushed changes to {branch_name}")
 
-# AI Agents
-shared_tools = [WebSearchTool(), ComputerTool()]
+# Define AI Tools
 
+shared_tools = [WebSearchTool(), ComputerTool(computer)]
+
+# AI Agents
 project_manager = Agent(
     name="Project Manager",
     instructions="Manage AI project development, review code, and approve PRs.",
